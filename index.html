@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dienstrechner</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <h1>Dienstrechner</h1>
+    <p class="sub">Zeitzuschläge und Bereitschaftsdienstentgelt nach TV-Ärzte (TdL), § 8 Abs. 1 und § 9</p>
+  </header>
+
+  <main>
+    <section class="card">
+      <h2>Einstellungen</h2>
+      <div class="settings">
+        <label>Monat
+          <input type="month" id="month">
+        </label>
+        <label>Entgeltgruppe
+          <select id="group">
+            <option value="Ä1">Ä1 – Ärztin/Arzt</option>
+            <option value="Ä2">Ä2 – Fachärztin/Facharzt</option>
+            <option value="Ä3">Ä3 – Oberärztin/Oberarzt</option>
+            <option value="Ä4">Ä4 – Ltd. Oberärztin/Oberarzt</option>
+          </select>
+        </label>
+        <label>Eigene Stufe
+          <select id="stufe"></select>
+        </label>
+        <label>Bereitschaftsdienststufe
+          <select id="bdStufe">
+            <option value="I">Stufe I – 60 %</option>
+            <option value="II">Stufe II – 95 %</option>
+          </select>
+        </label>
+        <label>Bundesland
+          <select id="state"></select>
+        </label>
+        <label>Feiertagsarbeit
+          <select id="holidayFza">
+            <option value="1">mit Freizeitausgleich – 35 %</option>
+            <option value="0">ohne Freizeitausgleich – 135 %</option>
+          </select>
+        </label>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Dienste im Monat</h2>
+      <table class="shifts">
+        <thead>
+          <tr><th>#</th><th>Beginn</th><th>Ende</th><th>Art</th><th>Info</th><th></th></tr>
+        </thead>
+        <tbody id="shiftRows"></tbody>
+      </table>
+      <p id="emptyHint" class="muted">Noch keine Dienste eingetragen.</p>
+      <button type="button" id="addShift" class="primary">+ Dienst hinzufügen</button>
+      <p class="muted small">Ein 24-h-Dienst mit Regelarbeit und anschließendem Bereitschaftsdienst wird als zwei Zeilen eingetragen.
+        Pausen bitte herausrechnen (Dienst ggf. aufteilen).</p>
+    </section>
+
+    <section class="card">
+      <h2>Ergebnis</h2>
+      <ul id="warnings" class="warnings"></ul>
+      <table class="results">
+        <thead>
+          <tr><th>Kategorie</th><th>§</th><th class="num">Stunden</th><th class="num">€/h</th><th class="num">Satz</th><th class="num">Betrag</th></tr>
+        </thead>
+        <tbody id="resultRows"></tbody>
+        <tfoot>
+          <tr><th colspan="5">Summe Zuschläge und BD-Entgelt</th><th class="num" id="total"></th></tr>
+        </tfoot>
+      </table>
+      <dl class="facts" id="facts"></dl>
+    </section>
+  </main>
+
+  <footer class="muted small">
+    <p>Grundlage: TV-Ärzte i.d.F. 9. ÄndTV, Entgelttabellen Anlagen A 1 – B 2. Zuschläge nach § 8 Abs. 1 auf Basis Stufe 3,
+      Bereitschaftsdienst nach § 9 Abs. 2 auf Basis der eigenen Stufe. Nicht berücksichtigt: Pausen, Überstunden, Rufbereitschaft,
+      Wechselschicht-/Schichtzulagen, Dienstplanänderungszuschläge (§ 7 Abs. 6a), angeordneter 5. Dienst (§ 9 Abs. 2a Satz 2),
+      Zeitumstellung, regionale Feiertage. Alle Angaben ohne Gewähr.</p>
+    <p><a href="tests.html">Selbsttest</a></p>
+  </footer>
+
+  <script src="js/tariff.js"></script>
+  <script src="js/holidays.js"></script>
+  <script src="js/calc.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

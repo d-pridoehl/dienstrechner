@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dienstrechner Selbsttest</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    .ok { color: #1a7f37; }
+    .fail { color: #d1242f; }
+    li { margin: 4px 0; }
+  </style>
+</head>
+<body>
+  <header><h1>Selbsttest</h1><p class="sub" id="summary"></p></header>
+  <main><section class="card"><ul id="list"></ul></section><p><a href="index.html">Zurück zum Rechner</a></p></main>
+  <script src="js/tariff.js"></script>
+  <script src="js/holidays.js"></script>
+  <script src="js/calc.js"></script>
+  <script src="js/tests.js"></script>
+  <script>
+    const results = DR.tests.run();
+    const list = document.getElementById('list');
+    for (const r of results) {
+      const li = document.createElement('li');
+      li.className = r.ok ? 'ok' : 'fail';
+      li.textContent = (r.ok ? '✓ ' : '✗ ') + r.name + (r.ok ? '' : ' – ' + r.error);
+      list.appendChild(li);
+    }
+    const failed = results.filter((r) => !r.ok).length;
+    document.getElementById('summary').textContent = `${results.length - failed} von ${results.length} Tests bestanden`;
+  </script>
+</body>
+</html>
