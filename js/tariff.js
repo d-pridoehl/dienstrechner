@@ -42,6 +42,18 @@
         'Ä4': [10942.53, 11724.64, 12347.33],
       },
     },
+    {
+      // Tarifabschluss 2026, gültig 01.04.2026 – 31.08.2027. Nicht im PDF enthalten; Quelle:
+      // https://oeffentlicher-dienst.info/c/t/rechner/aerzte/uniklinik?id=tv-aerzte-2026&matrix=1
+      // Dort ist für Ä3 keine Stufe 4 mehr aufgeführt.
+      name: 'Entgelttabelle 2026', from: '2026-04-01', weeklyHours: 40,
+      groups: {
+        'Ä1': [5792.90, 6121.26, 6355.79, 6762.34, 7247.00, 7436.05],
+        'Ä2': [7645.72, 8286.77, 8849.64, 9165.95, 9338.38, 9576.69],
+        'Ä3': [9576.69, 10139.57, 10944.77],
+        'Ä4': [11265.33, 12070.52, 12711.58],
+      },
+    },
   ];
 
   // Ab 1. April 2024: Nachtarbeit 20–6 Uhr statt 21–6 Uhr (§ 7 Abs. 7, § 9 Abs. 3),

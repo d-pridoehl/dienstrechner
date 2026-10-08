@@ -27,11 +27,20 @@
     eq(tariff.hourlyRate('2026-01-01', 'Ä1', 3), 35.50); // 6173,67 / (4,348 × 40)
   });
   test('Stundenentgelt Ä1 Stufe 1, Anlage B 2', () => {
-    eq(tariff.hourlyRate('2026-10-01', 'Ä1', 1), 32.35); // 5626,91 / 173,92
+    eq(tariff.hourlyRate('2026-03-01', 'Ä1', 1), 32.35); // 5626,91 / 173,92
+  });
+  test('Stundenentgelt Entgelttabelle 2026 (ab 01.04.2026)', () => {
+    eq(tariff.hourlyRate('2026-10-01', 'Ä1', 3), 36.54); // 6355,79 / 173,92
+    eq(tariff.hourlyRate('2026-10-01', 'Ä1', 1), 33.31); // 5792,90 / 173,92
   });
   test('Tabellenwechsel zum 1. April 2024', () => {
     eq(tariff.tableFor('2024-03-31').name, 'Anlage A 1');
     eq(tariff.tableFor('2024-04-01').name, 'Anlage A 2');
+  });
+  test('Tabellenwechsel zum 1. April 2026', () => {
+    eq(tariff.tableFor('2026-03-31').name, 'Anlage B 2');
+    eq(tariff.tableFor('2026-04-01').name, 'Entgelttabelle 2026');
+    eq(tariff.monthlySalary('2026-04-01', 'Ä1', 3), 6355.79);
   });
 
   // --- Feiertage -----------------------------------------------------------
@@ -55,9 +64,9 @@
   test('Nachtdienst Fr 20 Uhr – Sa 8 Uhr: 10 h Nacht, Samstag 6–8 Uhr zuschlagsfrei', () => {
     const r = calc.calculate([shift('2026-10-09T20:00', '2026-10-10T08:00')], S(), '2026-10');
     eq(row(r, 'night').hours, 10);
-    eq(row(r, 'night').amount, 71.00); // 10 × 35,50 × 20 %
+    eq(row(r, 'night').amount, 73.08); // 10 × 36,54 × 20 %
     eq(row(r, 'saturday').hours, 0);
-    eq(r.total, 71.00);
+    eq(r.total, 73.08);
     eq(r.regularHours, 12);
   });
   test('Samstag 12–22 Uhr: 7 h Samstagszuschlag (13–20) und 2 h Nacht', () => {
@@ -78,7 +87,7 @@
   test('Feiertag ohne Freizeitausgleich: 135 %', () => {
     const r = calc.calculate([shift('2026-11-01T10:00', '2026-11-01T14:00')], S({ holidayFreizeitausgleich: false }), '2026-11');
     eq(row(r, 'holidayNo', 135).hours, 4);
-    eq(row(r, 'holidayNo').amount, 191.70); // 4 × 35,50 × 135 %
+    eq(row(r, 'holidayNo').amount, 197.32); // 4 × 36,54 × 135 %
   });
   test('Gleicher Sonntag in Berlin (kein Feiertag): 25 % Sonntagszuschlag', () => {
     const r = calc.calculate([shift('2026-11-01T10:00', '2026-11-01T14:00')], S({ state: 'BE' }), '2026-11');
@@ -95,20 +104,20 @@
   test('BD Stufe I Di 16 Uhr – Mi 8 Uhr: 60 % individuelles Entgelt + Nachtzuschlag', () => {
     const r = calc.calculate([shift('2026-10-13T16:00', '2026-10-14T08:00', 'bd')], S(), '2026-10');
     eq(row(r, 'bd', 60).hours, 16);
-    eq(row(r, 'bd').amount, 310.56); // 16 × 32,35 × 60 %
+    eq(row(r, 'bd').amount, 319.78); // 16 × 33,31 × 60 %
     eq(row(r, 'bdNight').hours, 10);
-    eq(row(r, 'bdNight').amount, 71.00); // 10 × 35,50 (Stufe 3) × 20 %
+    eq(row(r, 'bdNight').amount, 73.08); // 10 × 36,54 (Stufe 3) × 20 %
     eq(row(r, 'night').hours, 0);
   });
   test('Gleicher BD in Stufe II: 95 %', () => {
     const r = calc.calculate([shift('2026-10-13T16:00', '2026-10-14T08:00', 'bd')], S({ bdStufe: 'II' }), '2026-10');
     eq(row(r, 'bd', 95).hours, 16);
-    eq(row(r, 'bd').amount, 491.72); // 16 × 32,35 × 95 %
+    eq(row(r, 'bd').amount, 506.31); // 16 × 33,31 × 95 %
   });
   test('BD Stufe II am Feiertag: 120 %, keine weiteren § 8-Zuschläge', () => {
     const r = calc.calculate([shift('2026-10-03T08:00', '2026-10-03T20:00', 'bd')], S({ bdStufe: 'II' }), '2026-10');
     eq(row(r, 'bd', 120).hours, 12);
-    eq(row(r, 'bd').amount, 465.84); // 12 × 32,35 × 120 %
+    eq(row(r, 'bd').amount, 479.66); // 12 × 33,31 × 120 %
     eq(row(r, 'saturday').hours, 0);
     eq(row(r, 'holiday').hours, 0);
   });
