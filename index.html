@@ -36,6 +36,12 @@
             <option value="II">Stufe II – 95 %</option>
           </select>
         </label>
+        <label>Beginn Bereitschaftszeit
+          <input type="time" id="bdStart">
+        </label>
+        <label>Ende Bereitschaftszeit
+          <input type="time" id="bdEnd">
+        </label>
         <label>Bundesland
           <select id="state"></select>
         </label>
@@ -58,8 +64,8 @@
       </table>
       <p id="emptyHint" class="muted">Noch keine Dienste eingetragen.</p>
       <button type="button" id="addShift" class="primary">+ Dienst hinzufügen</button>
-      <p class="muted small">Ein 24-h-Dienst mit Regelarbeit und anschließendem Bereitschaftsdienst wird als zwei Zeilen eingetragen.
-        Pausen bitte herausrechnen (Dienst ggf. aufteilen).</p>
+      <p class="muted small">„Dienst mit Bereitschaft“ wird automatisch aufgeteilt: Stunden innerhalb der Bereitschaftszeit (Einstellungen)
+        zählen als Bereitschaftsdienst, die übrigen als Regelarbeit. Pausen bitte herausrechnen (Dienst ggf. aufteilen).</p>
     </section>
 
     <section class="card">

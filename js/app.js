@@ -9,7 +9,10 @@
   const eur = new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' });
   const num = new Intl.NumberFormat('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-  const DEFAULT_SETTINGS = { group: 'Ä1', stufe: 1, bdStufe: 'I', state: 'NW', holidayFreizeitausgleich: true };
+  const DEFAULT_SETTINGS = {
+    group: 'Ä1', stufe: 1, bdStufe: 'I', state: 'NW', holidayFreizeitausgleich: true,
+    bdStart: calc.DEFAULT_BD_START, bdEnd: calc.DEFAULT_BD_END,
+  };
 
   function load(key, fallback) {
     try {
@@ -53,6 +56,8 @@
     $('bdStufe').value = settings.bdStufe;
     $('state').value = settings.state;
     $('holidayFza').value = settings.holidayFreizeitausgleich ? '1' : '0';
+    $('bdStart').value = settings.bdStart;
+    $('bdEnd').value = settings.bdEnd;
   }
 
   function readSettings() {
@@ -62,6 +67,8 @@
       bdStufe: $('bdStufe').value,
       state: $('state').value,
       holidayFreizeitausgleich: $('holidayFza').value === '1',
+      bdStart: $('bdStart').value || calc.DEFAULT_BD_START,
+      bdEnd: $('bdEnd').value || calc.DEFAULT_BD_END,
     };
     save('dr:settings', settings);
     renderInfo();
@@ -83,7 +90,13 @@
       const name = holidays.holidayName(date, settings.state);
       days.push(WEEKDAYS[new Date(t).getUTCDay()] + (name ? ' (' + name + ')' : ''));
     }
-    return num.format((b - a) / HOUR) + ' h · ' + days.join(' → ');
+    let info = num.format((b - a) / HOUR) + ' h · ' + days.join(' → ');
+    if (s.type === 'combined') {
+      const hm = (ms) => fmtLocal(ms).slice(11);
+      info += ' · ' + calc.splitCombined(a, b, settings)
+        .map((p) => (p.type === 'bd' ? 'BD ' : 'Regel ') + hm(p.start) + '–' + hm(p.end)).join(', ');
+    }
+    return info;
   }
 
   function renderShifts() {
@@ -98,6 +111,7 @@
         <td data-label="Art"><select data-field="type">
           <option value="regular">Regelarbeit / Nacht</option>
           <option value="bd">Bereitschaftsdienst</option>
+          <option value="combined">Dienst mit Bereitschaft</option>
         </select></td>
         <td class="info muted" data-label="Info"></td>
         <td><button type="button" class="del" title="Dienst löschen" aria-label="Dienst ${i + 1} löschen">✕</button></td>`;
@@ -219,7 +233,7 @@
 
   fillSelects();
   showSettings();
-  for (const id of ['group', 'stufe', 'bdStufe', 'state', 'holidayFza']) $(id).addEventListener('change', readSettings);
+  for (const id of ['group', 'stufe', 'bdStufe', 'bdStart', 'bdEnd', 'state', 'holidayFza']) $(id).addEventListener('change', readSettings);
   $('month').addEventListener('change', () => {
     if (!$('month').value) return;
     month = $('month').value;

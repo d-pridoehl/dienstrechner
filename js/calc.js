@@ -66,6 +66,34 @@
     return start >= monday5 && end <= friday21 ? 0.5 : 1;
   }
 
+  const DEFAULT_BD_START = '20:00';
+  const DEFAULT_BD_END = '07:00';
+
+  function minutesOf(hhmm, fallback) {
+    const m = /^(\d{2}):(\d{2})/.exec(hhmm || '') || /^(\d{2}):(\d{2})/.exec(fallback);
+    return Number(m[1]) * 60 + Number(m[2]);
+  }
+
+  // Zerlegt einen Dienst vom Typ 'combined' anhand der hausinternen Bereitschaftszeit
+  // (settings.bdStart/bdEnd, z. B. 20:00–07:00 über Mitternacht) in Regelarbeit und
+  // Bereitschaftsdienst. Liefert [{ start, end, type }] in zeitlicher Reihenfolge.
+  function splitCombined(start, end, settings) {
+    const from = minutesOf(settings.bdStart, DEFAULT_BD_START) * 60000;
+    let to = minutesOf(settings.bdEnd, DEFAULT_BD_END) * 60000;
+    if (to <= from) to += DAY;
+    const pieces = [];
+    let t = start;
+    for (let day = Math.floor(start / DAY) * DAY - DAY; day < end; day += DAY) {
+      const a = Math.max(t, day + from), b = Math.min(end, day + to);
+      if (a >= b) continue;
+      if (t < a) pieces.push({ start: t, end: a, type: 'regular' });
+      pieces.push({ start: a, end: b, type: 'bd' });
+      t = b;
+    }
+    if (t < end) pieces.push({ start: t, end, type: 'regular' });
+    return pieces;
+  }
+
   const CATEGORIES = {
     night:     { label: 'Nachtarbeit',                         para: '§ 8 Abs. 1 b' },
     sunday:    { label: 'Sonntagsarbeit',                      para: '§ 8 Abs. 1 c' },
@@ -89,8 +117,9 @@
   }
 
   /**
-   * shifts:   [{ start: 'YYYY-MM-DDTHH:MM', end: ..., type: 'regular' | 'bd' }]
-   * settings: { group: 'Ä1', stufe: 1–6, bdStufe: 'I' | 'II', state: 'NW', holidayFreizeitausgleich: bool }
+   * shifts:   [{ start: 'YYYY-MM-DDTHH:MM', end: ..., type: 'regular' | 'bd' | 'combined' }]
+   * settings: { group: 'Ä1', stufe: 1–6, bdStufe: 'I' | 'II', state: 'NW', holidayFreizeitausgleich: bool,
+   *             bdStart: 'HH:MM', bdEnd: 'HH:MM' }
    * month:    'YYYY-MM' – für Tabellenentgelt und Zuordnung der Bereitschaftsdienste
    */
   function calculate(shifts, settings, month) {
@@ -113,7 +142,11 @@
       if (end <= start) { warnings.push(`Zeile ${i + 1}: Ende liegt nicht nach dem Beginn.`); return; }
       if (end - start > 25 * HOUR) warnings.push(`Zeile ${i + 1}: Dienst ist länger als 24 Stunden.`);
       if (dateOf(start).slice(0, 7) !== month) warnings.push(`Zeile ${i + 1}: Dienst beginnt nicht im gewählten Monat.`);
-      parsed.push({ index: i, start, end, type: s.type === 'bd' ? 'bd' : 'regular' });
+      if (s.type === 'combined') {
+        for (const p of splitCombined(start, end, settings)) parsed.push({ index: i, ...p });
+      } else {
+        parsed.push({ index: i, start, end, type: s.type === 'bd' ? 'bd' : 'regular' });
+      }
     });
     parsed.sort((a, b) => a.start - b.start);
     for (let i = 1; i < parsed.length; i++) {
@@ -179,7 +212,7 @@
     };
   }
 
-  const api = { calculate, parse, segments, classify, bdWeight, CATEGORIES };
+  const api = { calculate, parse, segments, classify, bdWeight, splitCombined, CATEGORIES, DEFAULT_BD_START, DEFAULT_BD_END };
   root.DR = root.DR || {};
   root.DR.calc = api;
   if (typeof module !== 'undefined') module.exports = api;

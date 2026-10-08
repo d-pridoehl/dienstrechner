@@ -135,6 +135,34 @@
     eq(calc.bdWeight(calc.parse('2026-10-10T10:00'), calc.parse('2026-10-10T14:00')), 1); // Samstag
   });
 
+  // --- Dienst mit Bereitschaft (Aufteilung nach Bereitschaftszeit) ------------------
+  test('Dienst mit Bereitschaft Di 12 Uhr – Mi 7 Uhr: 8 h Regelarbeit, 11 h BD (20–7 Uhr)', () => {
+    const r = calc.calculate([shift('2026-10-13T12:00', '2026-10-14T07:00', 'combined')], S({ bdStart: '20:00', bdEnd: '07:00' }), '2026-10');
+    eq(r.regularHours, 8);
+    eq(r.bdHours, 11);
+    eq(row(r, 'night').hours, 0);
+    eq(row(r, 'bd', 60).amount, 219.85); // 11 × 33,31 × 60 %
+    eq(row(r, 'bdNight').hours, 10);       // 20–6 Uhr
+    eq(r.bdCount, 1);
+  });
+  test('Bereitschaftszeit 21:00–06:30: Rest davor und danach ist Regelarbeit', () => {
+    const r = calc.calculate([shift('2026-10-13T12:00', '2026-10-14T07:00', 'combined')], S({ bdStart: '21:00', bdEnd: '06:30' }), '2026-10');
+    eq(r.regularHours, 9.5);           // 12–21 Uhr und 6:30–7 Uhr
+    eq(r.bdHours, 9.5);
+    eq(row(r, 'night').hours, 1);      // Regelarbeit 20–21 Uhr
+    eq(row(r, 'bdNight').hours, 9);    // BD 21–6 Uhr
+  });
+  test('Ohne Einstellung gelten 20:00–07:00 als Bereitschaftszeit', () => {
+    const p = calc.splitCombined(calc.parse('2026-10-13T12:00'), calc.parse('2026-10-14T09:00'), {});
+    eq(p.map((x) => x.type).join(','), 'regular,bd,regular');
+    eq((p[1].end - p[1].start) / 3600000, 11);
+  });
+  test('Dienst endet vor Beginn der Bereitschaftszeit: nur Regelarbeit', () => {
+    const p = calc.splitCombined(calc.parse('2026-10-13T08:00'), calc.parse('2026-10-13T16:00'), { bdStart: '20:00', bdEnd: '07:00' });
+    eq(p.length, 1);
+    eq(p[0].type, 'regular');
+  });
+
   // --- Eingabeprüfung ----------------------------------------------------------
   test('Ungültige und überlappende Zeilen erzeugen Warnungen', () => {
     const r = calc.calculate([
