@@ -9,6 +9,7 @@ A static web app that calculates the shift surcharges (§ 8 Abs. 1) and the Bere
 - Run the app: open `index.html` in a browser (works over `file://`). There is no build step, server or dependencies.
 - Run the tests in the terminal: `gjs -m tests/run.js` (gjs is installed; Node is not).
 - Run the tests in the browser: open `tests.html`.
+- Deployed via GitHub Pages from `master` (root) at https://d-pridoehl.github.io/dienstrechner/; every push to `master` goes live. It is meant to be reached by direct link only, so every HTML page carries `<meta name="robots" content="noindex, nofollow">`. A `robots.txt` would not work for this project subpath.
 - Running a single test: no filter exists. Temporarily comment out the other `test(...)` calls in `js/tests.js`.
 
 ## Architecture
