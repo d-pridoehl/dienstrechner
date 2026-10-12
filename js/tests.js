@@ -64,10 +64,20 @@
   test('Nachtdienst Fr 20 Uhr – Sa 8 Uhr: 10 h Nacht, Samstag 6–8 Uhr zuschlagsfrei', () => {
     const r = calc.calculate([shift('2026-10-09T20:00', '2026-10-10T08:00')], S(), '2026-10');
     eq(row(r, 'night').hours, 10);
-    eq(row(r, 'night').amount, 73.08); // 10 × 36,54 × 20 %
+    eq(row(r, 'night').amount, 73.10); // 10 × 7,31 (36,54 × 20 %, auf Cent gerundet)
     eq(row(r, 'saturday').hours, 0);
-    eq(r.total, 73.08);
+    eq(r.balance.saldo, 4); // 12 h am Freitag statt 8 h Standardtag
     eq(r.regularHours, 12);
+  });
+  test('Stundensatz = Satz × Stundenentgelt, gerundet; Zeitfenster im Namen', () => {
+    const r = calc.calculate([shift('2026-10-10T12:00', '2026-10-10T22:00')], S(), '2026-10');
+    const night = r.rows.find((x) => x.cat === 'night');
+    eq(night.hourly, 7.31);            // 36,54 × 20 %
+    eq(night.label, 'Nachtarbeit (20–6 Uhr)');
+    eq(r.rows.find((x) => x.cat === 'saturday').label, 'Samstagsarbeit (13–20 Uhr)');
+    const old = calc.calculate([shift('2024-03-16T13:00', '2024-03-16T22:00')], S(), '2024-03');
+    eq(old.rows.find((x) => x.cat === 'night').label, 'Nachtarbeit (21–6 Uhr)');
+    eq(old.rows.find((x) => x.cat === 'saturday').label, 'Samstagsarbeit (13–21 Uhr)');
   });
   test('Samstag 12–22 Uhr: 7 h Samstagszuschlag (13–20) und 2 h Nacht', () => {
     const r = calc.calculate([shift('2026-10-10T12:00', '2026-10-10T22:00')], S(), '2026-10');
@@ -100,34 +110,42 @@
     eq(row(r, 'night').hours, 2);
   });
 
-  // --- Bereitschaftsdienst (§ 9) -----------------------------------------------
-  test('BD Stufe I Di 16 Uhr – Mi 8 Uhr: 60 % individuelles Entgelt + Nachtzuschlag', () => {
+  // --- Bereitschaftsdienst (§ 9): Bewertung als Arbeitszeit ----------------------
+  // Angerechnete BD-Stunden je Bewertung (in Prozent)
+  const credit = (res, rating) => {
+    const c = res.balance.bdCredit.find((x) => x.rating === rating);
+    return c ? c.hours : 0;
+  };
+
+  test('BD Stufe I Di 16 Uhr – Mi 8 Uhr: 60 % angerechnet + Nachtzuschlag', () => {
     const r = calc.calculate([shift('2026-10-13T16:00', '2026-10-14T08:00', 'bd')], S(), '2026-10');
-    eq(row(r, 'bd', 60).hours, 16);
-    eq(row(r, 'bd').amount, 319.78); // 16 × 33,31 × 60 %
-    eq(row(r, 'bdNight').hours, 10);
-    eq(row(r, 'bdNight').amount, 73.08); // 10 × 36,54 (Stufe 3) × 20 %
-    eq(row(r, 'night').hours, 0);
+    eq(credit(r, 60), 16);
+    eq(r.balance.bdCredited, 9.6);        // 16 × 60 %
+    eq(row(r, 'night').hours, 10);        // BD 20–6 Uhr, § 9 Abs. 3
+    eq(row(r, 'night').amount, 73.10);    // 10 × 7,31
   });
   test('Gleicher BD in Stufe II: 95 %', () => {
     const r = calc.calculate([shift('2026-10-13T16:00', '2026-10-14T08:00', 'bd')], S({ bdStufe: 'II' }), '2026-10');
-    eq(row(r, 'bd', 95).hours, 16);
-    eq(row(r, 'bd').amount, 506.31); // 16 × 33,31 × 95 %
+    eq(r.balance.bdCredited, 15.2);       // 16 × 95 %
   });
   test('BD Stufe II am Feiertag: 120 %, keine weiteren § 8-Zuschläge', () => {
     const r = calc.calculate([shift('2026-10-03T08:00', '2026-10-03T20:00', 'bd')], S({ bdStufe: 'II' }), '2026-10');
-    eq(row(r, 'bd', 120).hours, 12);
-    eq(row(r, 'bd').amount, 479.66); // 12 × 33,31 × 120 %
+    eq(credit(r, 120), 12);
+    eq(r.balance.bdCredited, 14.4);
     eq(row(r, 'saturday').hours, 0);
     eq(row(r, 'holiday').hours, 0);
+  });
+  test('BD Stufe I am Feiertag: 85 %', () => {
+    const r = calc.calculate([shift('2026-10-03T08:00', '2026-10-03T20:00', 'bd')], S(), '2026-10');
+    eq(credit(r, 85), 12);
   });
   test('Fünfter BD im Monat: 70 %, sechster 80 % (Stufe I)', () => {
     const days = ['05', '06', '07', '08', '12', '13'];
     const shifts = days.map((d) => shift(`2026-10-${d}T16:00`, `2026-10-${String(+d + 1).padStart(2, '0')}T08:00`, 'bd'));
     const r = calc.calculate(shifts, S(), '2026-10');
-    eq(row(r, 'bd', 60).hours, 64);
-    eq(row(r, 'bd', 70).hours, 16);
-    eq(row(r, 'bd', 80).hours, 16);
+    eq(credit(r, 60), 64);
+    eq(credit(r, 70), 16);
+    eq(credit(r, 80), 16);
   });
   test('Kurzer BD (≤ 4 h, werktags) zählt als halber Dienst', () => {
     eq(calc.bdWeight(calc.parse('2026-10-13T17:00'), calc.parse('2026-10-13T21:00')), 0.5);
@@ -135,32 +153,115 @@
     eq(calc.bdWeight(calc.parse('2026-10-10T10:00'), calc.parse('2026-10-10T14:00')), 1); // Samstag
   });
 
-  // --- Dienst mit Bereitschaft (Aufteilung nach Bereitschaftszeit) ------------------
-  test('Dienst mit Bereitschaft Di 12 Uhr – Mi 7 Uhr: 8 h Regelarbeit, 11 h BD (20–7 Uhr)', () => {
-    const r = calc.calculate([shift('2026-10-13T12:00', '2026-10-14T07:00', 'combined')], S({ bdStart: '20:00', bdEnd: '07:00' }), '2026-10');
-    eq(r.regularHours, 8);
-    eq(r.bdHours, 11);
-    eq(row(r, 'night').hours, 0);
-    eq(row(r, 'bd', 60).amount, 219.85); // 11 × 33,31 × 60 %
-    eq(row(r, 'bdNight').hours, 10);       // 20–6 Uhr
+  // --- Dienst mit Bereitschaft: feste BD-Fenster je Tagesart ------------------------
+  const W = { bdStart: '20:00', bdEnd: '08:00' };
+  const hm = (ms) => new Date(ms).toISOString().slice(0, 16);
+
+  test('Werktag Di 12:45 – Mi 9:00: 8,25 h Regelarbeit, 12 h BD (20–8 Uhr)', () => {
+    const r = calc.calculate([shift('2026-10-13T12:45', '2026-10-14T09:00', 'combined')], S(W), '2026-10');
+    eq(r.regularHours, 8.25);          // 12:45–20:00 und Übergabe 8–9 Uhr
+    eq(r.bdHours, 12);
+    eq(r.balance.bdCredited, 7.2);
+    eq(row(r, 'night').hours, 10);     // nur BD 20–6 Uhr
     eq(r.bdCount, 1);
   });
-  test('Bereitschaftszeit 21:00–06:30: Rest davor und danach ist Regelarbeit', () => {
+  test('Werktag mit eigener Bereitschaftszeit 21:00–06:30', () => {
     const r = calc.calculate([shift('2026-10-13T12:00', '2026-10-14T07:00', 'combined')], S({ bdStart: '21:00', bdEnd: '06:30' }), '2026-10');
     eq(r.regularHours, 9.5);           // 12–21 Uhr und 6:30–7 Uhr
     eq(r.bdHours, 9.5);
-    eq(row(r, 'night').hours, 1);      // Regelarbeit 20–21 Uhr
-    eq(row(r, 'bdNight').hours, 9);    // BD 21–6 Uhr
+    eq(row(r, 'night').hours, 10);     // Regelarbeit 20–21 Uhr + BD 21–6 Uhr
+    eq(r.rows.filter((x) => x.cat === 'night').length, 1); // eine gemeinsame Zeile
   });
-  test('Ohne Einstellung gelten 20:00–07:00 als Bereitschaftszeit', () => {
+  test('Ohne Einstellung gelten werktags 20:00–08:00', () => {
     const p = calc.splitCombined(calc.parse('2026-10-13T12:00'), calc.parse('2026-10-14T09:00'), {});
     eq(p.map((x) => x.type).join(','), 'regular,bd,regular');
-    eq((p[1].end - p[1].start) / 3600000, 11);
+    eq((p[1].end - p[1].start) / 3600000, 12);
   });
   test('Dienst endet vor Beginn der Bereitschaftszeit: nur Regelarbeit', () => {
-    const p = calc.splitCombined(calc.parse('2026-10-13T08:00'), calc.parse('2026-10-13T16:00'), { bdStart: '20:00', bdEnd: '07:00' });
+    const p = calc.splitCombined(calc.parse('2026-10-13T08:00'), calc.parse('2026-10-13T16:00'), W);
     eq(p.length, 1);
     eq(p[0].type, 'regular');
+  });
+  test('Fr 12:45 – Sa 10:00: BD 20:00–09:30, Übergabe 9:30–10:00', () => {
+    const r = calc.calculate([shift('2026-10-09T12:45', '2026-10-10T10:00', 'combined')], S(W), '2026-10');
+    eq(r.regularHours, 7.75);
+    eq(r.bdHours, 13.5);
+  });
+  test('Sa 9:30 – So 9:30: BD 10:00–09:00 = 23 h, je 0,5 h Übergabe', () => {
+    const r = calc.calculate([shift('2026-10-17T09:30', '2026-10-18T09:30', 'combined')], S(W), '2026-10');
+    eq(r.bdHours, 23);
+    eq(r.balance.bdCredited, 13.8);
+    eq(r.regularHours, 1);
+    eq(row(r, 'sunday', 25).hours, 0.5); // So 9:00–9:30
+  });
+  test('So 9:00 – Mo 9:00: BD 09:30–08:00 = 22,5 h, Montag ist belegt', () => {
+    const r = calc.calculate([shift('2026-10-18T09:00', '2026-10-19T09:00', 'combined')], S(W), '2026-10');
+    eq(r.bdHours, 22.5);
+    eq(r.balance.bdCredited, 13.5);
+    eq(r.regularHours, 1.5);           // So 9:00–9:30, Mo 8:00–9:00
+    eq(r.balance.autoDays, 21);
+    eq(r.balance.saldo, 7);            // 13,5 + 1,5 − 8 (Montag)
+    eq(row(r, 'bdPayout').amount, 233.17); // 7 × 33,31
+  });
+  test('Feiertag am Samstag (03.10.) gilt als Sonn-/Feiertag', () => {
+    const [from, to] = calc.bdWindow(calc.parse('2026-10-03T09:00'), S(W));
+    eq(hm(from), '2026-10-03T09:30');
+    eq(hm(to), '2026-10-04T09:00');
+  });
+  test('Nacht vor einem Feiertag: BD endet 9:00 (24./25.12.)', () => {
+    const [from, to] = calc.bdWindow(calc.parse('2026-12-24T12:45'), S(W));
+    eq(hm(from), '2026-12-24T20:00');
+    eq(hm(to), '2026-12-25T09:00');
+  });
+  test('Vorbelegte Dienstzeiten je Tagesart', () => {
+    const d = (date) => { const t = calc.defaultTimes(date, S(W)); return t.start + ' ' + t.end; };
+    eq(d('2026-10-13'), '2026-10-13T12:45 2026-10-14T09:00'); // Di
+    eq(d('2026-10-09'), '2026-10-09T12:45 2026-10-10T10:00'); // Fr
+    eq(d('2026-10-17'), '2026-10-17T09:30 2026-10-18T09:30'); // Sa
+    eq(d('2026-10-18'), '2026-10-18T09:00 2026-10-19T09:00'); // So
+    eq(d('2026-12-24'), '2026-12-24T12:45 2026-12-25T09:30'); // vor Feiertag
+    eq(d('2026-10-03'), '2026-10-03T09:00 2026-10-04T09:30'); // Feiertag (Sa)
+  });
+
+  // --- Arbeitszeitkonto ----------------------------------------------------------
+  test('Soll: Oktober 2026 = 22 Werktage × 8 h, Juni 2026 NW ohne Fronleichnam', () => {
+    const oct = calc.calculate([], S(), '2026-10');
+    eq(oct.balance.workdays, 22);
+    eq(oct.balance.target, 176);
+    eq(oct.balance.saldo, 0);
+    eq(oct.total, 0);
+    eq(calc.calculate([], S(), '2026-06').balance.target, 168);
+  });
+  test('Soll bei 42-h-Tabelle: Oktober 2025 = 22 × 8,4 h', () => {
+    eq(calc.calculate([], S(), '2025-10').balance.target, 184.8);
+  });
+  test('Nur Werktags-Nacht: Saldo −0,55 h, keine Auszahlung', () => {
+    const r = calc.calculate([shift('2026-10-13T12:45', '2026-10-14T09:00', 'combined')], S(W), '2026-10');
+    eq(r.balance.autoHours, 160);
+    eq(r.balance.credited, 175.45);    // 160 + 8,25 + 7,2
+    eq(r.balance.saldo, -0.55);
+    eq(r.balance.payoutHours, 0);
+    eq(row(r, 'bdPayout').hours, 0);
+  });
+  test('Werktags-Nacht + Samstagsdienst: Saldo +14,25 h → 474,67 €', () => {
+    const r = calc.calculate([
+      shift('2026-10-13T12:45', '2026-10-14T09:00', 'combined'),
+      shift('2026-10-17T09:30', '2026-10-18T09:30', 'combined'),
+    ], S(W), '2026-10');
+    eq(r.balance.credited, 190.25);
+    eq(r.balance.saldo, 14.25);
+    eq(row(r, 'bdPayout').amount, 474.67); // 14,25 × 33,31
+  });
+  test('Frei-Tag am Mittwoch: Saldo −8 h', () => {
+    const r = calc.calculate([shift('2026-10-21T00:00', '2026-10-22T00:00', 'off')], S(), '2026-10');
+    eq(r.balance.autoDays, 21);
+    eq(r.balance.saldo, -8);
+    eq(r.regularHours, 0);
+  });
+  test('Nachtdienst ab 30.09. belegt den 01.10. (prevShifts)', () => {
+    const prev = [shift('2026-09-30T12:45', '2026-10-01T09:00', 'combined')];
+    eq(calc.calculate([], S(), '2026-10', prev).balance.saldo, -8);
+    eq(calc.calculate([], S(), '2026-10').balance.saldo, 0);
   });
 
   // --- Eingabeprüfung ----------------------------------------------------------

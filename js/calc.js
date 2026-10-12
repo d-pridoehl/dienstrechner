@@ -66,44 +66,100 @@
     return start >= monday5 && end <= friday21 ? 0.5 : 1;
   }
 
+  // Hausinterne Zeiten für "Dienst mit Bereitschaft". Werktags gelten die einstellbaren
+  // Bereitschaftszeiten, an Samstagen, Sonn- und Feiertagen feste Zeiten. Die Anwesenheit vor
+  // und nach dem Bereitschaftsdienst (Schichtübergabe) zählt als Regelarbeit.
   const DEFAULT_BD_START = '20:00';
-  const DEFAULT_BD_END = '07:00';
+  const DEFAULT_BD_END = '08:00';
+  const FIXED_TIMES = {
+    // Dienst- und BD-Beginn richten sich nach dem Tag, an dem der Dienst beginnt.
+    start: {
+      werktag:      { shift: '12:45', bd: null }, // null: Einstellung bdStart
+      samstag:      { shift: '09:30', bd: '10:00' },
+      sonnFeiertag: { shift: '09:00', bd: '09:30' },
+    },
+    // BD- und Dienstende richten sich nach dem Folgetag.
+    end: {
+      werktag:      { bd: null, shift: '09:00' },  // null: Einstellung bdEnd
+      samstag:      { bd: '09:30', shift: '10:00' },
+      sonnFeiertag: { bd: '09:00', shift: '09:30' },
+    },
+  };
 
-  function minutesOf(hhmm, fallback) {
-    const m = /^(\d{2}):(\d{2})/.exec(hhmm || '') || /^(\d{2}):(\d{2})/.exec(fallback);
-    return Number(m[1]) * 60 + Number(m[2]);
+  function validTime(hhmm, fallback) {
+    return /^\d{2}:\d{2}/.test(hhmm || '') ? hhmm.slice(0, 5) : fallback;
   }
 
-  // Zerlegt einen Dienst vom Typ 'combined' anhand der hausinternen Bereitschaftszeit
-  // (settings.bdStart/bdEnd, z. B. 20:00–07:00 über Mitternacht) in Regelarbeit und
-  // Bereitschaftsdienst. Liefert [{ start, end, type }] in zeitlicher Reihenfolge.
+  function nextDate(date) {
+    return dateOf(Date.parse(date + 'T00:00:00Z') + DAY);
+  }
+
+  // Feiertage gehen vor, auch wenn sie auf einen Samstag fallen.
+  function dayType(date, state) {
+    if (H.holidayName(date, state)) return 'sonnFeiertag';
+    const weekday = new Date(date + 'T00:00:00Z').getUTCDay();
+    return weekday === 0 ? 'sonnFeiertag' : weekday === 6 ? 'samstag' : 'werktag';
+  }
+
+  // Bereitschaftsdienst-Fenster [Beginn, Ende) eines Dienstes, der am Tag von `start` beginnt.
+  function bdWindow(start, settings) {
+    const d0 = dateOf(start), d1 = nextDate(d0);
+    const bdStart = FIXED_TIMES.start[dayType(d0, settings.state)].bd || validTime(settings.bdStart, DEFAULT_BD_START);
+    const bdEnd = FIXED_TIMES.end[dayType(d1, settings.state)].bd || validTime(settings.bdEnd, DEFAULT_BD_END);
+    return [parse(d0 + 'T' + bdStart), parse(d1 + 'T' + bdEnd)];
+  }
+
+  // Vorschlag für Beginn und Ende eines "Dienstes mit Bereitschaft" am Tag `date`.
+  function defaultTimes(date, settings) {
+    const d1 = nextDate(date);
+    return {
+      start: date + 'T' + FIXED_TIMES.start[dayType(date, settings.state)].shift,
+      end: d1 + 'T' + FIXED_TIMES.end[dayType(d1, settings.state)].shift,
+    };
+  }
+
+  // Zerlegt einen Dienst vom Typ 'combined' in Regelarbeit und Bereitschaftsdienst.
+  // Liefert [{ start, end, type }] in zeitlicher Reihenfolge.
   function splitCombined(start, end, settings) {
-    const from = minutesOf(settings.bdStart, DEFAULT_BD_START) * 60000;
-    let to = minutesOf(settings.bdEnd, DEFAULT_BD_END) * 60000;
-    if (to <= from) to += DAY;
+    const [from, to] = bdWindow(start, settings);
+    const a = Math.max(start, from), b = Math.min(end, to);
+    if (a >= b) return [{ start, end, type: 'regular' }];
     const pieces = [];
-    let t = start;
-    for (let day = Math.floor(start / DAY) * DAY - DAY; day < end; day += DAY) {
-      const a = Math.max(t, day + from), b = Math.min(end, day + to);
-      if (a >= b) continue;
-      if (t < a) pieces.push({ start: t, end: a, type: 'regular' });
-      pieces.push({ start: a, end: b, type: 'bd' });
-      t = b;
-    }
-    if (t < end) pieces.push({ start: t, end, type: 'regular' });
+    if (start < a) pieces.push({ start, end: a, type: 'regular' });
+    pieces.push({ start: a, end: b, type: 'bd' });
+    if (b < end) pieces.push({ start: b, end, type: 'regular' });
     return pieces;
   }
 
+  // Alle Kalendertage, die [start, end) berührt. Ein Ende um 0:00 berührt den Tag nicht.
+  function touchedDays(start, end) {
+    const days = [];
+    for (let t = Math.floor(start / DAY) * DAY; t < end; t += DAY) days.push(dateOf(t));
+    return days;
+  }
+
   const CATEGORIES = {
-    night:     { label: 'Nachtarbeit',                         para: '§ 8 Abs. 1 b' },
-    sunday:    { label: 'Sonntagsarbeit',                      para: '§ 8 Abs. 1 c' },
-    holiday:   { label: 'Feiertagsarbeit mit Freizeitausgleich', para: '§ 8 Abs. 1 d' },
-    holidayNo: { label: 'Feiertagsarbeit ohne Freizeitausgleich', para: '§ 8 Abs. 1 d' },
-    xmas:      { label: 'Arbeit am 24./31. Dezember ab 6 Uhr',  para: '§ 8 Abs. 1 e' },
-    saturday:  { label: 'Samstagsarbeit 13–20 Uhr',            para: '§ 8 Abs. 1 f' },
-    bd:        { label: 'Bereitschaftsdienst',                 para: '§ 9 Abs. 2, 2a' },
-    bdNight:   { label: 'Bereitschaftsdienst in der Nacht',    para: '§ 9 Abs. 3' },
+    // Nachtarbeit und Bereitschaftsdienst in der Nacht haben denselben Zuschlag (20 % auf
+    // Stufe 3) und stehen auf der Gehaltsabrechnung in einer Zeile.
+    night:     { label: 'Nachtarbeit',                           para: '§ 8 Abs. 1 b, § 9 Abs. 3' },
+    sunday:    { label: 'Sonntagsarbeit',                        para: '§ 8 Abs. 1 c' },
+    holiday:   { label: 'Feiertagsarbeit mit Freizeitausgleich',   para: '§ 8 Abs. 1 d' },
+    holidayNo: { label: 'Feiertagsarbeit ohne Freizeitausgleich',  para: '§ 8 Abs. 1 d' },
+    xmas:      { label: 'Arbeit am 24./31. Dezember',             para: '§ 8 Abs. 1 e' },
+    saturday:  { label: 'Samstagsarbeit',                        para: '§ 8 Abs. 1 f' },
+    bdPayout:  { label: 'Bereitschaftsdienst (Saldo Arbeitszeitkonto)',   para: '§ 8 Abs. 4, § 9 Abs. 2' },
   };
+
+  // Zeitfenster, in dem der Zuschlag gilt, für die Anzeige hinter der Kategorie.
+  function windowLabel(cat, date) {
+    switch (cat) {
+      case 'night': return `${T.nightStartHour(date)}–6 Uhr`;
+      case 'saturday': return `13–${T.saturdayEndHour(date)} Uhr`;
+      case 'xmas': return '6–24 Uhr';
+      case 'sunday': case 'holiday': case 'holidayNo': return '0–24 Uhr';
+      default: return '';
+    }
+  }
 
   // § 8 Abs. 1 Satz 3: von c bis f wird nur der höchste Zuschlag gezahlt.
   function highestDayBonus(c, settings) {
@@ -117,21 +173,29 @@
   }
 
   /**
-   * shifts:   [{ start: 'YYYY-MM-DDTHH:MM', end: ..., type: 'regular' | 'bd' | 'combined' }]
-   * settings: { group: 'Ä1', stufe: 1–6, bdStufe: 'I' | 'II', state: 'NW', holidayFreizeitausgleich: bool,
-   *             bdStart: 'HH:MM', bdEnd: 'HH:MM' }
-   * month:    'YYYY-MM' – für Tabellenentgelt und Zuordnung der Bereitschaftsdienste
+   * shifts:     [{ start: 'YYYY-MM-DDTHH:MM', end: ..., type: 'regular' | 'bd' | 'combined' | 'off' }]
+   * settings:   { group: 'Ä1', stufe: 1–6, bdStufe: 'I' | 'II', state: 'NW', holidayFreizeitausgleich: bool,
+   *               bdStart: 'HH:MM', bdEnd: 'HH:MM' }
+   * month:      'YYYY-MM' – für Tabellenentgelt, Sollstunden und Zuordnung der Bereitschaftsdienste
+   * prevShifts: Dienste des Vormonats; nur die von ihnen berührten Tage in `month` zählen
+   *             (ein Nachtdienst am 31. belegt den 1. des Folgemonats).
+   *
+   * Arbeitszeitkonto: Soll = Werktage (Mo–Fr ohne Feiertage) × Wochenstunden/5. Ist = Werktage
+   * ohne eingetragenen Dienst als Standardtag + Regelarbeit + Bereitschaftsdienst × Bewertung.
+   * Nur ein positiver Saldo wird mit dem individuellen Stundenentgelt ausgezahlt.
    */
-  function calculate(shifts, settings, month) {
+  function calculate(shifts, settings, month, prevShifts) {
     const warnings = [];
     const rows = new Map();
-    let regularHours = 0, bdHours = 0;
+    const touched = new Set();
+    const bdCredit = new Map();
+    let regularHours = 0, bdHours = 0, bdCredited = 0;
 
-    function add(cat, hours, rate, percent, extraLabel) {
-      const key = cat + '|' + rate + '|' + percent;
-      if (!rows.has(key)) {
-        rows.set(key, { cat, label: CATEGORIES[cat].label + (extraLabel || ''), para: CATEGORIES[cat].para, hours: 0, rate, percent });
-      }
+    function add(cat, hours, rate, percent, date) {
+      const win = windowLabel(cat, date);
+      const label = CATEGORIES[cat].label + (win ? ' (' + win + ')' : '');
+      const key = cat + '|' + rate + '|' + percent + '|' + label;
+      if (!rows.has(key)) rows.set(key, { cat, label, para: CATEGORIES[cat].para, hours: 0, rate, percent });
       rows.get(key).hours += hours;
     }
 
@@ -142,12 +206,18 @@
       if (end <= start) { warnings.push(`Zeile ${i + 1}: Ende liegt nicht nach dem Beginn.`); return; }
       if (end - start > 25 * HOUR) warnings.push(`Zeile ${i + 1}: Dienst ist länger als 24 Stunden.`);
       if (dateOf(start).slice(0, 7) !== month) warnings.push(`Zeile ${i + 1}: Dienst beginnt nicht im gewählten Monat.`);
+      touchedDays(start, end).forEach((d) => touched.add(d));
+      if (s.type === 'off') return;
       if (s.type === 'combined') {
         for (const p of splitCombined(start, end, settings)) parsed.push({ index: i, ...p });
       } else {
         parsed.push({ index: i, start, end, type: s.type === 'bd' ? 'bd' : 'regular' });
       }
     });
+    for (const s of prevShifts || []) {
+      const start = parse(s.start), end = parse(s.end);
+      if (!isNaN(start) && !isNaN(end) && end > start) touchedDays(start, end).forEach((d) => touched.add(d));
+    }
     parsed.sort((a, b) => a.start - b.start);
     for (let i = 1; i < parsed.length; i++) {
       if (parsed[i].start < parsed[i - 1].end) warnings.push(`Zeilen ${parsed[i - 1].index + 1} und ${parsed[i].index + 1} überschneiden sich.`);
@@ -175,28 +245,53 @@
         const rate3 = T.hourlyRate(c.date, settings.group, 3);
         if (s.type === 'regular') {
           regularHours += hours;
-          if (c.night) add('night', hours, rate3, 20);
+          if (c.night) add('night', hours, rate3, 20, c.date);
           const bonus = highestDayBonus(c, settings);
-          if (bonus) add(bonus[0], hours, rate3, bonus[1]);
+          if (bonus) add(bonus[0], hours, rate3, bonus[1], c.date);
         } else {
           bdHours += hours;
-          const rateInd = T.hourlyRate(c.date, settings.group, settings.stufe);
           const rating = base + s.bdExtra + (c.holiday ? 25 : 0);
-          const parts = [`Stufe ${settings.bdStufe}`];
-          if (s.bdExtra) parts.push(`+${s.bdExtra} Pp. Mehrdienst`);
-          if (c.holiday) parts.push('+25 Pp. Feiertag');
-          add('bd', hours, rateInd, rating, ' (' + parts.join(', ') + ')');
-          if (c.night) add('bdNight', hours, rate3, 20);
+          bdCredited += hours * rating / 100;
+          if (!bdCredit.has(rating)) {
+            const parts = [`Stufe ${settings.bdStufe || 'I'}`];
+            if (s.bdExtra) parts.push(`+${s.bdExtra} Pp. Mehrdienst`);
+            if (c.holiday) parts.push('+25 Pp. Feiertag');
+            bdCredit.set(rating, { label: parts.join(', '), rating, hours: 0 });
+          }
+          bdCredit.get(rating).hours += hours;
+          if (c.night) add('night', hours, rate3, 20, c.date); // § 9 Abs. 3
         }
       }
     }
 
-    const order = Object.keys(CATEGORIES);
-    const result = [...rows.values()]
-      .map((r) => ({ ...r, hours: round2(r.hours), amount: round2(r.hours * r.rate * r.percent / 100) }))
-      .sort((x, y) => order.indexOf(x.cat) - order.indexOf(y.cat) || x.percent - y.percent || x.rate - y.rate);
+    // Sollstunden und automatisch angenommene Standardtage
+    let workdays = 0, target = 0, autoDays = 0, autoHours = 0;
+    const [y, m] = month.split('-').map(Number);
+    for (let t = Date.UTC(y, m - 1, 1); dateOf(t).slice(0, 7) === month; t += DAY) {
+      const date = dateOf(t);
+      if (dayType(date, settings.state) !== 'werktag') continue;
+      const daily = T.tableFor(date).weeklyHours / 5;
+      workdays++;
+      target += daily;
+      if (!touched.has(date)) { autoDays++; autoHours += daily; }
+    }
+    const credited = autoHours + regularHours + bdCredited;
+    const saldo = round2(credited) - round2(target);
+    const payoutHours = Math.max(0, round2(saldo));
 
     const firstOfMonth = month + '-01';
+    const rateIndividual = T.hourlyRate(firstOfMonth, settings.group, settings.stufe);
+    if (payoutHours > 0) add('bdPayout', payoutHours, rateIndividual, 100, firstOfMonth);
+
+    const order = Object.keys(CATEGORIES);
+    const result = [...rows.values()]
+      // § 24 Abs. 4: Stundensatz (Satz × Stundenentgelt) wird auf Cent gerundet, dann mit den Stunden multipliziert.
+      .map((r) => {
+        const hourly = round2(r.rate * r.percent / 100);
+        return { ...r, hours: round2(r.hours), hourly, amount: round2(r.hours * hourly) };
+      })
+      .sort((x, y) => order.indexOf(x.cat) - order.indexOf(y.cat) || x.percent - y.percent || x.rate - y.rate);
+
     return {
       rows: result,
       total: round2(result.reduce((sum, r) => sum + r.amount, 0)),
@@ -204,15 +299,32 @@
       bdHours: round2(bdHours),
       bdServices,
       bdCount,
+      balance: {
+        workdays,
+        target: round2(target),
+        autoDays,
+        autoHours: round2(autoHours),
+        regularHours: round2(regularHours),
+        bdCredited: round2(bdCredited),
+        bdCredit: [...bdCredit.values()]
+          .sort((a, b) => a.rating - b.rating)
+          .map((r) => ({ ...r, hours: round2(r.hours), credited: round2(r.hours * r.rating / 100) })),
+        credited: round2(credited),
+        saldo: round2(saldo),
+        payoutHours,
+      },
       table: T.tableFor(firstOfMonth).name,
       baseSalary: T.monthlySalary(firstOfMonth, settings.group, settings.stufe),
       rateStufe3: T.hourlyRate(firstOfMonth, settings.group, 3),
-      rateIndividual: T.hourlyRate(firstOfMonth, settings.group, settings.stufe),
+      rateIndividual,
       warnings,
     };
   }
 
-  const api = { calculate, parse, segments, classify, bdWeight, splitCombined, CATEGORIES, DEFAULT_BD_START, DEFAULT_BD_END };
+  const api = {
+    calculate, parse, segments, classify, bdWeight, splitCombined, bdWindow, defaultTimes, dayType,
+    CATEGORIES, FIXED_TIMES, DEFAULT_BD_START, DEFAULT_BD_END,
+  };
   root.DR = root.DR || {};
   root.DR.calc = api;
   if (typeof module !== 'undefined') module.exports = api;

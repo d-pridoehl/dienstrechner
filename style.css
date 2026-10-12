@@ -34,7 +34,7 @@ body {
   color: var(--text);
   font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
-header, main, footer { max-width: 1000px; margin: 0 auto; padding: 0 16px; }
+header, main, footer { max-width: 1160px; margin: 0 auto; padding: 0 16px; }
 header { padding-top: 24px; }
 h1 { margin: 0; font-size: 1.6rem; }
 h2 { margin: 0 0 12px; font-size: 1.1rem; }
@@ -69,12 +69,20 @@ table { width: 100%; border-collapse: collapse; }
 th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); vertical-align: middle; }
 th { font-size: 0.8rem; color: var(--muted); font-weight: 600; }
 .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
-tfoot th { color: var(--text); font-size: 1rem; border-bottom: none; }
+tfoot th, tfoot td { color: var(--text); font-size: 1rem; border-bottom: none; }
 tfoot .num { font-size: 1.1rem; }
 .results tr.bd td { background: var(--bd); }
 .shifts .idx { color: var(--muted); width: 2em; }
+.dt, .time { display: flex; align-items: center; gap: 4px; }
+.dt { flex-wrap: wrap; }
+.dt input[type="date"] { flex: 1 1 auto; min-width: 0; }
+.dt select, .time select { flex: none; padding: 6px 4px; }
+.dt .clock { display: flex; align-items: center; gap: 4px; }
+.colon { color: var(--muted); }
 .results .para { display: none; font-size: 0.75rem; color: var(--muted); }
 .shifts .info { font-size: 0.85rem; }
+.shifts .info .summary { color: var(--text); font-weight: 600; white-space: nowrap; }
+.shifts .info .summary:first-of-type { margin-top: 2px; }
 
 button {
   border: 1px solid var(--border);
@@ -91,6 +99,14 @@ button.del:hover { color: #d1242f; border-color: #d1242f; }
 .warnings:empty { display: none; }
 .warnings li { background: var(--warn-bg); color: var(--warn-text); padding: 6px 10px; border-radius: 6px; margin-bottom: 6px; }
 
+h3 { margin: 20px 0 8px; font-size: 1rem; }
+.fixed-times { margin: 12px 0 0; }
+.balance td { padding: 4px 8px; }
+.balance td:nth-child(2) { font-size: 0.85rem; }
+.balance tr.sum td { font-weight: 600; border-top: 1px solid var(--border); }
+.balance tr.neg td:last-child { color: #d1242f; }
+.balance tr.pos td:last-child { color: #1a7f37; }
+
 .facts { display: grid; grid-template-columns: max-content 1fr; gap: 4px 16px; margin: 16px 0 0; font-size: 0.9rem; }
 .facts dt { color: var(--muted); }
 .facts dd { margin: 0; font-variant-numeric: tabular-nums; }
@@ -105,14 +121,13 @@ a { color: var(--accent); }
   .shifts tr { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; padding: 10px 0; border-bottom: 1px solid var(--border); position: relative; }
   .shifts td { border: none; padding: 0; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
   .shifts input, .shifts select { width: 100%; }
+  .shifts .dt select { width: auto; }
   .shifts td:nth-child(2) { padding-right: 44px; }
   .shifts td::before { content: attr(data-label); font-size: 0.75rem; color: var(--muted); }
   .shifts td.idx { display: none; }
   .shifts td:last-child { position: absolute; top: 28px; right: 0; }
   .shifts td:last-child::before { content: none; }
-  .results thead th:nth-child(2), .results tbody td:nth-child(2),
-  .results thead th:nth-child(4), .results tbody td:nth-child(4) { display: none; }
-  .results tfoot th[colspan] { width: auto; }
+  .results tr > :nth-child(2), .results tr > :nth-child(4), .results tr > :nth-child(5), .results tr > :nth-child(6) { display: none; }
   .results { font-size: 0.9rem; }
   .results .para { display: block; }
   .results th, .results td { padding: 6px 4px; }

@@ -37,11 +37,11 @@
             <option value="II">Stufe II – 95 %</option>
           </select>
         </label>
-        <label>Beginn Bereitschaftszeit
-          <input type="time" id="bdStart">
+        <label>BD-Beginn werktags
+          <span class="time"><select id="bdStartH" aria-label="Stunde"></select><span class="colon">:</span><select id="bdStartM" aria-label="Minute"></select></span>
         </label>
-        <label>Ende Bereitschaftszeit
-          <input type="time" id="bdEnd">
+        <label>BD-Ende werktags
+          <span class="time"><select id="bdEndH" aria-label="Stunde"></select><span class="colon">:</span><select id="bdEndM" aria-label="Minute"></select></span>
         </label>
         <label>Bundesland
           <select id="state"></select>
@@ -53,6 +53,10 @@
           </select>
         </label>
       </div>
+      <p class="muted small fixed-times">Feste Zeiten für „Dienst mit Bereitschaft“ – Beginn nach Starttag:
+        werktags Dienst 12:45, BD laut Einstellung · Samstag Dienst 9:30, BD 10:00 · Sonn-/Feiertag Dienst 9:00, BD 9:30.
+        Ende nach Folgetag: werktags BD laut Einstellung, Dienst 9:00 · Samstag BD 9:30, Dienst 10:00 · Sonn-/Feiertag BD 9:00, Dienst 9:30.
+        Zeit außerhalb des BD (Schichtübergabe) zählt als Regelarbeit.</p>
     </section>
 
     <section class="card">
@@ -65,8 +69,10 @@
       </table>
       <p id="emptyHint" class="muted">Noch keine Dienste eingetragen.</p>
       <button type="button" id="addShift" class="primary">+ Dienst hinzufügen</button>
-      <p class="muted small">„Dienst mit Bereitschaft“ wird automatisch aufgeteilt: Stunden innerhalb der Bereitschaftszeit (Einstellungen)
-        zählen als Bereitschaftsdienst, die übrigen als Regelarbeit. Pausen bitte herausrechnen (Dienst ggf. aufteilen).</p>
+      <p class="muted small">Nur Dienste eintragen, die vom normalen 8-h-Tag abweichen: Jeder Werktag ohne Eintrag zählt als
+        Standardtag (auch Urlaub/Krankheit). „Dienst mit Bereitschaft“ wird nach den festen Zeiten in Regelarbeit und
+        Bereitschaftsdienst aufgeteilt; Beginn und Ende werden beim Wählen des Tages vorbelegt und können angepasst werden.
+        „Frei“ markiert freie Werktage ohne Anrechnung. Pausen bitte herausrechnen.</p>
     </section>
 
     <section class="card">
@@ -74,20 +80,26 @@
       <ul id="warnings" class="warnings"></ul>
       <table class="results">
         <thead>
-          <tr><th>Kategorie</th><th>§</th><th class="num">Stunden</th><th class="num">€/h</th><th class="num">Satz</th><th class="num">Betrag</th></tr>
+          <tr><th>Kategorie</th><th>§</th><th class="num">Stunden</th><th class="num">€/h</th><th class="num">Satz</th><th class="num">Stundensatz</th><th class="num">Betrag</th></tr>
         </thead>
         <tbody id="resultRows"></tbody>
         <tfoot>
-          <tr><th colspan="5">Summe Zuschläge und BD-Entgelt</th><th class="num" id="total"></th></tr>
+          <tr><th>Summe für die Gehaltsabrechnung</th><td></td><td></td><td></td><td></td><td></td><th class="num" id="total"></th></tr>
         </tfoot>
+      </table>
+      <h3>Arbeitszeitkonto</h3>
+      <table class="balance">
+        <tbody id="balanceRows"></tbody>
       </table>
       <dl class="facts" id="facts"></dl>
     </section>
   </main>
 
   <footer class="muted small">
-    <p>Grundlage: TV-Ärzte i.d.F. 9. ÄndTV, Entgelttabellen Anlagen A 1 – B 2 sowie Entgelttabelle 2026 (ab 01.04.2026). Zuschläge nach § 8 Abs. 1 auf Basis Stufe 3,
-      Bereitschaftsdienst nach § 9 Abs. 2 auf Basis der eigenen Stufe. Nicht berücksichtigt: Pausen, Überstunden, Rufbereitschaft,
+    <p>Grundlage: TV-Ärzte i.d.F. 9. ÄndTV, Entgelttabellen Anlagen A 1 – B 2 sowie Entgelttabelle 2026 (ab 01.04.2026). Zuschläge nach § 8 Abs. 1 auf Basis Stufe 3.
+      Bereitschaftsdienst wird mit seiner Bewertung (§ 9 Abs. 2, 2a) als Arbeitszeit angerechnet; nur ein positiver Monatssaldo
+      gegenüber dem Soll (Werktage × Wochenstunden/5) wird mit dem individuellen Stundenentgelt ausgezahlt, ohne Übertrag in
+      den Folgemonat. Der BD-Nachtzuschlag (§ 9 Abs. 3) wird immer gezahlt. Nicht berücksichtigt: Pausen, Überstundenzuschläge, Rufbereitschaft,
       Wechselschicht-/Schichtzulagen, Dienstplanänderungszuschläge (§ 7 Abs. 6a), angeordneter 5. Dienst (§ 9 Abs. 2a Satz 2),
       Zeitumstellung, regionale Feiertage. Alle Angaben ohne Gewähr.</p>
     <p><a href="tests.html">Selbsttest</a></p>
